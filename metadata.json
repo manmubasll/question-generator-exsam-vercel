@@ -1,0 +1,6 @@
+{
+  "name": "Question Generator Exsam",
+  "description": "Aplikasi Pembuatan Soal Otomatis Menggunakan AI Gemini Flash untuk Madrasah dan Sekolah (MI/SD, MTs/SMP, MA/SMA) dengan Kop Madrasah, Pilihan Ganda, Essay, Kunci Jawaban Terpisah, serta Export Word, PDF, dan Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
