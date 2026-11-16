@@ -5,7 +5,7 @@ export default async function handler(
   res: Response
 ) {
   try {
-    const { default: app } = await import("../server");
+    const { default: app } = await import("../server.ts");
     return app(req, res);
   } catch (error) {
     console.error("SERVER IMPORT ERROR:", error);
