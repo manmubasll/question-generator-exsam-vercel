@@ -217,6 +217,8 @@ export interface GenerateExamPayload {
     mimeType: string;
   }[];
   questionsPerPassage?: number; // e.g. 5 questions per passage
+  includeUploadedAsReadingPassage?: boolean;
+  useUploadedAsReference?: boolean;
   schoolIdentity: SchoolIdentity;
   teacherName: string;
   examDate: string;
