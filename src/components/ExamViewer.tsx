@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AnswerSheetPanel } from "./AnswerSheetPanel";
 import { ExamData, PaperSize, OptionLayout } from "../types";
 import { SchoolHeaderKop } from "./SchoolHeaderKop";
 import { exportToWord, exportToWordClassic, getEffectiveOptionLayout } from "../utils/exportWord";
@@ -53,6 +54,7 @@ export const ExamViewer: React.FC<ExamViewerProps> = ({
   onUpdateExamData,
 }) => {
   const [activeTab, setActiveTab] = useState<"soal" | "kunci" | "kisi-kisi" | "kartu-soal" | "analisis" | "lengkap">("soal");
+  const [showAnswerSheet, setShowAnswerSheet] = useState(false);
   const [paperSize, setPaperSize] = useState<PaperSize>("A4");
   const [optionLayout, setOptionLayout] = useState<OptionLayout>(
     examData.optionLayout || examData.metadata?.optionLayout || "auto"
@@ -480,6 +482,12 @@ export const ExamViewer: React.FC<ExamViewerProps> = ({
 
   return (
     <div className="space-y-6">
+      <div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+        <div><div className="font-bold text-emerald-950">Lembar Jawaban & Koreksi Otomatis</div><p className="text-xs text-emerald-800">Cetak lembar jawaban, unggah foto/scan, lalu tinjau hasil pembacaan.</p></div>
+        <button type="button" onClick={() => setShowAnswerSheet(v => !v)} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">{showAnswerSheet ? "Tutup Fitur" : "Buka Lembar Jawaban"}</button>
+      </div>
+      {showAnswerSheet && <AnswerSheetPanel examData={examData} />}
+
       {/* Top Action Bar (Hidden on Print) */}
       <div className="no-print bg-white p-4 sm:p-5 rounded-2xl shadow-md border border-emerald-100 flex flex-col gap-4">
         

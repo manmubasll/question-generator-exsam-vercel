@@ -1498,6 +1498,38 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
 });
 
 // Translate existing exam to Arabic endpoint
+app.post("/api/grade-answer-sheet", async (req, res) => {
+  try {
+    const { imageBase64, mimeType, questionCount, optionKeys } = req.body || {};
+    if (!imageBase64 || mimeType !== "image/jpeg" || !Array.isArray(optionKeys) || !Number.isInteger(questionCount) || questionCount < 1 || questionCount > 100) {
+      return res.status(400).json({ error: "Data gambar atau jumlah soal tidak valid." });
+    }
+    const ai = getGeminiClient();
+    const prompt = `Baca satu halaman lembar jawaban pilihan ganda milik SATU peserta ujian.
+Identifikasi teks identitas yang tertulis pada lembar: nama lengkap, nomor peserta, dan kelas.
+Ada tepat ${questionCount} nomor dan pilihan yang sah: ${optionKeys.join(", ")}.
+Kembalikan JSON saja dengan bentuk {"student":{"name":"","studentNumber":"","className":""},"answers":[{"number":1,"answer":"A","note":""}]}.
+Baca jawaban hanya dari bulatan yang dihitamkan. Untuk setiap nomor 1 sampai ${questionCount}, isi answer dengan satu huruf pilihan jika tepat satu bulatan tampak jelas dihitamkan. Jika kosong, ganda, tertutup, atau tidak yakin, gunakan answer:null dan note singkat. Jangan menebak identitas maupun jawaban; gunakan string kosong untuk identitas yang tidak terbaca. Nomor harus berurutan lengkap. Jangan membaca pilihan dari teks soal atau huruf cetak.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] }],
+      config: { responseMimeType: "application/json", temperature: 0.1, maxOutputTokens: 8192 },
+    });
+    const parsed = safeParseGeminiJson(response.text || "");
+    const answers = Array.isArray(parsed.answers) ? parsed.answers : [];
+    const normalized = Array.from({ length: questionCount }, (_, i) => {
+      const found = answers.find((a: any) => Number(a.number) === i + 1);
+      const answer = String(found?.answer || "").trim().toUpperCase();
+      return { number: i + 1, answer: optionKeys.includes(answer) ? answer : null, note: String(found?.note || (!answer ? "tidak terbaca" : "")) };
+    });
+    const student = parsed.student || {};
+    return res.json({ student: { name: String(student.name || ""), studentNumber: String(student.studentNumber || ""), className: String(student.className || "") }, answers: normalized });
+  } catch (error: any) {
+    console.error("Error reading answer sheet:", error);
+    return res.status(500).json({ error: error.message || "Gagal membaca lembar jawaban." });
+  }
+});
+
 app.post("/api/translate-exam-to-arabic", async (req, res) => {
   try {
     const { examData, targetLanguage = "ar" } = req.body;
