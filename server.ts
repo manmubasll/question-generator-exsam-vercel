@@ -1023,6 +1023,8 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
       required: ["generalInstructions", "multipleChoiceQuestions", "essayQuestions"],
     };
 
+    let parsedData: any = null;
+
     for (const modelName of candidateModels) {
       try {
         console.log(`[Exam Generator] Attempting generation with model: ${modelName}...`);
@@ -1657,7 +1659,7 @@ Format output WAJIB berupa JSON valid sesuai schema.
       cleanJson = cleanJson.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
     }
 
-    const parsedData = JSON.parse(cleanJson);
+    parsedData = safeParseGeminiJson(cleanJson);
 
     const translatedExamData = {
       ...examData,
