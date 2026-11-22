@@ -41,6 +41,7 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [examData, setExamData] = useState<ExamData | null>(null);
   const [lastPayload, setLastPayload] = useState<GenerateExamPayload | null>(null);
+  const [showIntroDetails, setShowIntroDetails] = useState(false);
 
   // Interval to update loading steps for better user feedback
   React.useEffect(() => {
@@ -231,12 +232,25 @@ export default function App() {
                   <Sparkles className="w-3.5 h-3.5" />
                   Kecerdasan Buatan Generasi Baru • AI Gemini Flash
                 </div>
-                <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight font-serif text-white">
-                  Pembuatan Naskah Soal & Kunci Jawaban Otomatis
-                </h2>
-                <p className="text-sm sm:text-base text-emerald-100 mt-2 leading-relaxed">
-                  Dirancang khusus untuk Bapak/Ibu Guru Madrasah dan Sekolah di seluruh Indonesia. Susun naskah soal Ulangan Harian, UTS/PTS, UAS/PAS, dan Ujian Akhir secara praktis dengan opsi berstandar jenjang (SD/MI: 3 opsi, SMP/MTs: 4 opsi, SMA/MA: 5 opsi), bebas kode LaTeX, kop madrasah resmi, serta lembar kunci jawaban terpisah yang siap diekspor ke <strong>Word (.docx)</strong>, <strong>PDF</strong>, dan <strong>Excel (.xlsx)</strong>.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowIntroDetails((shown) => !shown)}
+                  aria-expanded={showIntroDetails}
+                  className="mt-1 inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-white/15 transition-colors"
+                >
+                  <ChevronRight className={`w-4 h-4 transition-transform ${showIntroDetails ? "rotate-90" : ""}`} />
+                  {showIntroDetails ? "Sembunyikan Tentang Aplikasi" : "Tentang Aplikasi"}
+                </button>
+                {showIntroDetails && (
+                  <div className="mt-3">
+                    <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight font-serif text-white">
+                      Pembuatan Naskah Soal & Kunci Jawaban Otomatis
+                    </h2>
+                    <p className="text-sm sm:text-base text-emerald-100 mt-2 leading-relaxed">
+                      Dirancang khusus untuk Bapak/Ibu Guru Madrasah dan Sekolah di seluruh Indonesia. Susun naskah soal Ulangan Harian, UTS/PTS, UAS/PAS, dan Ujian Akhir secara praktis dengan opsi berstandar jenjang (SD/MI: 3 opsi, SMP/MTs: 4 opsi, SMA/MA: 5 opsi), bebas kode LaTeX, kop madrasah resmi, serta lembar kunci jawaban terpisah yang siap diekspor ke <strong>Word (.docx)</strong>, <strong>PDF</strong>, dan <strong>Excel (.xlsx)</strong>.
+                    </p>
+                  </div>
+                )}
 
                 {/* Feature Pills */}
                 <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
