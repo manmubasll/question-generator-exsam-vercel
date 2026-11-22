@@ -1498,6 +1498,35 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
 });
 
 // Translate existing exam to Arabic endpoint
+app.post("/api/grade-answer-sheet", async (req, res) => {
+  try {
+    const { imageBase64, mimeType, questionCount, optionKeys } = req.body || {};
+    if (!imageBase64 || !mimeType || !Array.isArray(optionKeys) || !Number.isInteger(questionCount) || questionCount < 1 || questionCount > 100) {
+      return res.status(400).json({ error: "Data gambar atau jumlah soal tidak valid." });
+    }
+    const ai = getGeminiClient();
+    const prompt = `Baca lembar jawaban pilihan ganda dari gambar. Ada tepat ${questionCount} nomor dan pilihan yang sah: ${optionKeys.join(", ")}.
+Kembalikan JSON saja dengan bentuk {"answers":[{"number":1,"answer":"A","note":""}]}.
+Untuk setiap nomor 1 sampai ${questionCount}, isi answer dengan satu huruf pilihan jika tepat satu bulatan tampak jelas dihitamkan. Jika kosong, ganda, tertutup, atau tidak yakin, gunakan answer:null dan note singkat ("kosong", "jawaban ganda", atau "tidak terbaca"). Jangan menebak. Nomor harus berurutan lengkap. Perhatikan bulatan yang benar-benar diarsir, bukan huruf cetak pada kolom.`;
+    const response = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] }],
+      config: { responseMimeType: "application/json", temperature: 0.1, maxOutputTokens: 8192 },
+    });
+    const parsed = safeParseGeminiJson(response.text || "");
+    const answers = Array.isArray(parsed.answers) ? parsed.answers : [];
+    const normalized = Array.from({ length: questionCount }, (_, i) => {
+      const found = answers.find((a: any) => Number(a.number) === i + 1);
+      const answer = String(found?.answer || "").trim().toUpperCase();
+      return { number: i + 1, answer: optionKeys.includes(answer) ? answer : null, note: String(found?.note || (!answer ? "tidak terbaca" : "")) };
+    });
+    return res.json({ answers: normalized });
+  } catch (error: any) {
+    console.error("Error reading answer sheet:", error);
+    return res.status(500).json({ error: error.message || "Gagal membaca lembar jawaban." });
+  }
+});
+
 app.post("/api/translate-exam-to-arabic", async (req, res) => {
   try {
     const { examData, targetLanguage = "ar" } = req.body;
