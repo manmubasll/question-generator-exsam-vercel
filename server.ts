@@ -27,6 +27,38 @@ function getGeminiClient() {
   });
 }
 
+// Parse Gemini JSON safely, including responses cut off at the end of an object/array.
+function safeParseGeminiJson(raw: string): any {
+  let cleaned = String(raw || "").trim();
+  const fence = String.fromCharCode(96).repeat(3);
+  if (cleaned.startsWith(fence)) cleaned = cleaned.slice(3).replace(/^json\s*/i, "").trim();
+  const closingFence = cleaned.lastIndexOf(fence);
+  if (closingFence >= 0) cleaned = cleaned.slice(0, closingFence).trim();
+  const firstBrace = cleaned.indexOf("{");
+  if (firstBrace > 0) cleaned = cleaned.slice(firstBrace);
+  try { return JSON.parse(cleaned); } catch {
+    let inString = false, escaped = false;
+    const closers: string[] = [];
+    for (const ch of cleaned) {
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === "{") closers.push("}");
+      else if (ch === "[") closers.push("]");
+      else if ((ch === "}" || ch === "]") && closers.length) closers.pop();
+    }
+    let recovered = cleaned;
+    if (inString) { if (escaped) recovered = recovered.slice(0, -1); recovered += '"'; }
+    recovered = recovered.replace(/,\s*$/, "") + closers.reverse().join("");
+    try { return JSON.parse(recovered); }
+    catch (error) { throw new Error("Respons AI bukan JSON lengkap atau terpotong dan tidak dapat dipulihkan: " + (error as Error).message); }
+  }
+}
+
 // Normalization & Strict Count Helpers
 function normalizeOptions(
   options: any[],
@@ -434,7 +466,7 @@ Format output JSON valid dengan array 'multipleChoiceQuestions' berisi TEPAT ${c
     required: ["multipleChoiceQuestions"],
   };
 
-  const candidateModels = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+  const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
   for (const m of candidateModels) {
     try {
       const resp = await ai.models.generateContent({
@@ -443,16 +475,11 @@ Format output JSON valid dengan array 'multipleChoiceQuestions' berisi TEPAT ${c
         config: {
           responseMimeType: "application/json",
           responseSchema: schema,
-          maxOutputTokens: 4096,
-          temperature: 0.7,
+          maxOutputTokens: 65536,
         },
       });
       if (resp.text) {
-        let clean = resp.text.trim();
-        if (clean.startsWith("```")) {
-          clean = clean.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-        }
-        const parsed = JSON.parse(clean);
+        const parsed = safeParseGeminiJson(resp.text);
         if (Array.isArray(parsed.multipleChoiceQuestions)) {
           return parsed.multipleChoiceQuestions;
         }
@@ -526,7 +553,7 @@ Format output JSON valid dengan array 'essayQuestions' berisi TEPAT ${count} but
     required: ["essayQuestions"],
   };
 
-  const candidateModels = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+  const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
   for (const m of candidateModels) {
     try {
       const resp = await ai.models.generateContent({
@@ -535,16 +562,11 @@ Format output JSON valid dengan array 'essayQuestions' berisi TEPAT ${count} but
         config: {
           responseMimeType: "application/json",
           responseSchema: schema,
-          maxOutputTokens: 4096,
-          temperature: 0.7,
+          maxOutputTokens: 65536,
         },
       });
       if (resp.text) {
-        let clean = resp.text.trim();
-        if (clean.startsWith("```")) {
-          clean = clean.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-        }
-        const parsed = JSON.parse(clean);
+        const parsed = safeParseGeminiJson(resp.text);
         if (Array.isArray(parsed.essayQuestions)) {
           return parsed.essayQuestions;
         }
@@ -581,6 +603,8 @@ app.post("/api/generate-exam", async (req, res) => {
       materialImageMimeType = "image/jpeg",
       uploadedPhotos = [],
       questionsPerPassage = 5,
+      includeUploadedAsReadingPassage = false,
+      useUploadedAsReference = false,
       schoolIdentity,
       teacherName,
       examDate,
@@ -655,6 +679,19 @@ PERHATIAN KHUSUS - BAHASA NASKAH SOAL: BILINGUAL (ARAB - INDONESIA):
 `
       : "";
 
+    const uploadedMaterialInstructions = photoCount > 0
+      ? [
+          "MODE PENGGUNAAN DOKUMEN:",
+          includeUploadedAsReadingPassage && useUploadedAsReference
+            ? "Gunakan dokumen sebagai teks bacaan sekaligus sumber/referensi. Ekstrak isi relevan menjadi readingPassages dan gunakan informasi sebagai dasar fakta soal."
+            : includeUploadedAsReadingPassage
+            ? "Jadikan dokumen sebagai teks bacaan ujian. Ekstrak isi menjadi readingPassages dan hubungkan soal melalui readingPassageId."
+            : useUploadedAsReference
+            ? "Gunakan dokumen sebagai sumber/referensi saja. Pelajari isi untuk menyusun soal, tetapi jangan menampilkan dokumen sebagai bacaan panjang pada naskah ujian."
+            : "Mode otomatis: AI menentukan apakah dokumen paling tepat digunakan sebagai teks bacaan, sumber/referensi, atau keduanya."
+        ].join("\n")
+      : "";
+
     const promptInstructions = `
 Anda adalah seorang Ahli Pembuat Soal Ujian dan Asesmen Pendidikan Nasional (Kemendikbudristek dan Kementerian Agama Republik Indonesia) yang sangat profesional, berwawasan luas, dan teliti.
 
@@ -695,32 +732,7 @@ Tugas Anda adalah membuat naskah soal ujian lengkap beserta kunci jawaban dan pe
 13. Acuan Materi / Kisi-kisi / Topik:
 ${materialDescription ? `"${materialDescription}"` : "Sesuaikan dengan kurikulum standar jenjang dan kelas tersebut."}
 ${languageInstruction}
-${
-  photoCount > 0
-    ? `
-PERHATIAN KHUSUS & WAJIB - TEKS BACAAN WACANA DARI ${photoCount} DOKUMEN PDF / FOTO BACAAN YANG DILAMPIRKAN:
-Pengguna telah melampirkan TEPAT ${photoCount} FILE DOKUMEN BACAAN (berformat PDF atau FOTO/GAMBAR MATERI).
-1. TRANSKRIPSI & SUSUN MENJADI 'readingPassages':
-   - Analisis, baca, dan ekstrak naskah/cerita/artikel/materi dari setiap file dokumen PDF maupun foto materi secara teliti.
-   - Buatkan entri pada array 'readingPassages' untuk setiap wacana bacaan yang berhasil diekstraksi dari dokumen PDF/foto tersebut:
-     * 'id': identifier urut, contoh: "bacaan-1", "bacaan-2", dst.
-     * 'title': Judul teks wacana yang representatif (contoh: "Teks Bacaan 1: [Judul Sesuai Isi Dokumen/Foto 1]").
-     * 'source': Sumber wacana (contoh: "Disarikan dari naskah dokumen PDF/buku ajar terlampir").
-     * 'content': Naskah lengkap teks bacaan yang runtut, edukatif, tata bahasa baku (EYD V atau Bahasa Arab jika mode Arab), tanpa kode LaTeX, dan siap dibaca siswa.
-     * 'questionRange': Keterangan rentang nomor soal (contoh: "Soal PG No. 1 - ${Math.min(qPerPassage, targetPgCount || 5)} & Soal Essay No. 1 - 2").
-     * 'questionNumbers': Array nomor butir soal pilihan ganda yang merujuk pada teks ini (contoh: [1, 2, 3, 4, 5]).
-     * 'essayQuestionNumbers': Array nomor butir soal essay yang merujuk pada teks ini (contoh: [1, 2]).
-2. HUBUNGKAN TEKS BACAAN DENGAN BUTIR SOAL:
-   - Jika ada soal pilihan ganda: Alokasikan TEPAT ${qPerPassage} butir soal pilihan ganda untuk tiap 1 Teks Bacaan.
-     * Pada setiap butir soal PG yang menguji bacaan, berikan properti 'readingPassageId' yang sesuai (misal: "bacaan-1").
-3. WAJIB & SANGAT PENTING - SOAL ESSAY / URAIAN DENGAN RUJUKAN TEKS BACAAN (TERKHUSUS BAHASA ARAB, BAHASA INDONESIA, BAHASA INGGRIS):
-   - Apabila terdapat dokumen PDF atau foto wacana bacaan yang dilampirkan, buat soal-soal Essay / Uraian yang secara nyata menguji kemampuan pemahaman bacaan (reading comprehension, ide pokok paragraf, pesan tersirat/amanat wacana, makna kosakata kontekstual, analisis sebab-akibat, atau penerjemahan).
-   - Terkhusus untuk Mata Pelajaran Bahasa Arab, Bahasa Indonesia, dan Bahasa Inggris: Butir soal essay yang menguji teks bacaan WAJIB diberi properti 'readingPassageId' yang merujuk pada teks bacaan terkait (misal: "bacaan-1").
-   - Cantumkan nomor-nomor butir soal essay tersebut ke dalam array 'essayQuestionNumbers' pada objek teks bacaan di 'readingPassages' (contoh: [1, 2]).
-   - Jika jumlah soal PG adalah 0 (hanya soal essay), maka alokasikan seluruh teks bacaan secara langsung untuk butir-butir soal Essay!
-`
-    : ""
-}
+${uploadedMaterialInstructions}
 
 ATURAN WAJIB & SANGAT KETAT:
 1. BEBAS KODE LATEX: DILARANG KERAS menggunakan simbol atau kode LaTeX apa pun (seperti tanda dollar $...$, \\frac, \\sqrt, \\times, \\ge, \\pm, \\text, dll). Gunakan langsung teks dan simbol Unicode sesungguhnya yang siap dibaca siswa!
@@ -778,11 +790,7 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
     });
 
     // Model fallback sequence to ensure 100% availability even during Google API peak demand spikes
-    const candidateModels = [
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-3.8-flash",
-    ];
+    const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
 
     let lastError: any = null;
     let responseText: string | null = null;
@@ -1015,6 +1023,8 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
       required: ["generalInstructions", "multipleChoiceQuestions", "essayQuestions"],
     };
 
+    let parsedData: any = null;
+
     for (const modelName of candidateModels) {
       try {
         console.log(`[Exam Generator] Attempting generation with model: ${modelName}...`);
@@ -1024,15 +1034,20 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
           config: {
             responseMimeType: "application/json",
             responseSchema: schemaConfig,
-            maxOutputTokens: 8192,
-            temperature: 0.7,
+            maxOutputTokens: 65536,
           },
         });
 
         if (response.text) {
-          responseText = response.text;
-          console.log(`[Exam Generator] Generation successful with model: ${modelName}`);
-          break;
+          try {
+            parsedData = safeParseGeminiJson(response.text);
+            responseText = response.text;
+            console.log(`[Exam Generator] Generation successful with model: ${modelName}`);
+            break;
+          } catch (parseError: any) {
+            lastError = parseError;
+            console.warn(`[Exam Generator] JSON from ${modelName} was incomplete; trying fallback model:`, parseError?.message || parseError);
+          }
         }
       } catch (err: any) {
         console.warn(`[Exam Generator] Model ${modelName} failed:`, err?.message || err);
@@ -1056,13 +1071,7 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
       throw new Error(friendlyError);
     }
 
-    // Clean any markdown formatting if present
-    let cleanJson = responseText.trim();
-    if (cleanJson.startsWith("```")) {
-      cleanJson = cleanJson.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
-    }
-
-    const parsedData = JSON.parse(cleanJson);
+    if (!parsedData) throw new Error("Respons AI tidak dapat dibaca sebagai JSON yang valid.");
 
     const targetOptionCount = Math.max(3, Math.min(5, Number(optionCount) || 4));
 
@@ -1610,14 +1619,11 @@ Format output WAJIB berupa JSON valid sesuai schema.
       required: ["generalInstructions", "multipleChoiceQuestions", "essayQuestions"],
     };
 
-    const candidateModels = [
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-3.8-flash",
-    ];
+    const candidateModels = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
 
     let lastError: any = null;
     let responseText: string | null = null;
+    let parsedData: any = null;
 
     for (const modelName of candidateModels) {
       try {
@@ -1628,7 +1634,7 @@ Format output WAJIB berupa JSON valid sesuai schema.
           config: {
             responseMimeType: "application/json",
             responseSchema: schemaConfig,
-            maxOutputTokens: 8192,
+            maxOutputTokens: 65536,
             temperature: 0.3,
           },
         });
@@ -1653,7 +1659,7 @@ Format output WAJIB berupa JSON valid sesuai schema.
       cleanJson = cleanJson.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
     }
 
-    const parsedData = JSON.parse(cleanJson);
+    parsedData = safeParseGeminiJson(cleanJson);
 
     const translatedExamData = {
       ...examData,

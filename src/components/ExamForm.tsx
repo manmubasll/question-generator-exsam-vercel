@@ -152,6 +152,8 @@ export const ExamForm: React.FC<ExamFormProps> = ({
   const [uploadedPhotos, setUploadedPhotos] = useState<UploadedPhotoItem[]>([]);
   const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [questionsPerPassage, setQuestionsPerPassage] = useState<number>(5);
+  const [includeUploadedAsReadingPassage, setIncludeUploadedAsReadingPassage] = useState<boolean>(false);
+  const [useUploadedAsReference, setUseUploadedAsReference] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // 16. Identitas Pengampu & Waktu
@@ -259,6 +261,8 @@ export const ExamForm: React.FC<ExamFormProps> = ({
         mimeType: p.mimeType,
       })),
       questionsPerPassage,
+      includeUploadedAsReadingPassage,
+      useUploadedAsReference,
       materialImageBase64: uploadedPhotos[0]?.base64,
       materialImageMimeType: uploadedPhotos[0]?.mimeType,
       schoolIdentity,
@@ -1033,7 +1037,7 @@ export const ExamForm: React.FC<ExamFormProps> = ({
                     Upload Foto / Dokumen Teks Bacaan (Maksimal 10 File: PDF, JPG, PNG, JPEG)
                   </label>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Tiap dokumen PDF atau foto materi akan dianalisis dan disarikan oleh AI menjadi Teks Bacaan (Wacana Stimulus) yang dirujuk oleh butir-butir soal.
+                    Dokumen PDF atau foto dapat dijadikan teks bacaan, sumber/referensi, atau digunakan secara otomatis sesuai pilihan di bawah.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1057,6 +1061,21 @@ export const ExamForm: React.FC<ExamFormProps> = ({
                   )}
                 </div>
               </div>
+
+              {uploadedPhotos.length > 0 && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-emerald-900">Cara AI menggunakan dokumen yang diunggah</p>
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-800">
+                    <input type="checkbox" checked={includeUploadedAsReadingPassage} onChange={(e) => setIncludeUploadedAsReadingPassage(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#006837]" />
+                    <span><strong>Masukkan materi sebagai teks bacaan dalam naskah ujian.</strong><span className="block text-slate-600 mt-0.5">AI menyusun bacaan dari PDF/foto dan menghubungkannya dengan soal yang sesuai.</span></span>
+                  </label>
+                  <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-800">
+                    <input type="checkbox" checked={useUploadedAsReference} onChange={(e) => setUseUploadedAsReference(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#006837]" />
+                    <span><strong>Gunakan materi hanya sebagai sumber/referensi pembuatan soal.</strong><span className="block text-slate-600 mt-0.5">AI mempelajari isi dokumen, tetapi tidak menampilkan salinan bacaan panjang di naskah.</span></span>
+                  </label>
+                  <p className="text-[11px] text-slate-600">Keduanya boleh dipilih bersamaan. Jika tidak ada yang dicentang, AI menentukan penggunaan dokumen secara otomatis.</p>
+                </div>
+              )}
 
               {uploadError && (
                 <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-3 text-xs flex items-start gap-2">
@@ -1168,7 +1187,7 @@ export const ExamForm: React.FC<ExamFormProps> = ({
                     </div>
                     
                     <p className="text-[11px] text-slate-700 leading-relaxed">
-                      AI Gemini akan menyarikan setiap foto menjadi <strong>Teks Bacaan (Wacana)</strong> berbobot edukatif, dan butir-butir soal pilihan ganda akan langsung merujuk pada bacaan dari foto tersebut.
+                      Jika opsi teks bacaan dipilih, AI menyusun wacana dari dokumen dan menghubungkan soal yang relevan. Jika tidak, AI mengikuti pilihan sumber/referensi atau mode otomatis.
                     </p>
 
                     <div className="flex flex-wrap items-center gap-3 pt-1">
