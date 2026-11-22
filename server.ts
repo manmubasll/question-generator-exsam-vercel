@@ -466,7 +466,7 @@ Format output JSON valid dengan array 'multipleChoiceQuestions' berisi TEPAT ${c
     required: ["multipleChoiceQuestions"],
   };
 
-  const candidateModels = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+  const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
   for (const m of candidateModels) {
     try {
       const resp = await ai.models.generateContent({
@@ -553,7 +553,7 @@ Format output JSON valid dengan array 'essayQuestions' berisi TEPAT ${count} but
     required: ["essayQuestions"],
   };
 
-  const candidateModels = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+  const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
   for (const m of candidateModels) {
     try {
       const resp = await ai.models.generateContent({
@@ -790,7 +790,7 @@ Format output WAJIB dalam bentuk JSON valid sesuai schema.
     });
 
     // Model fallback sequence to ensure 100% availability even during Google API peak demand spikes
-    const candidateModels = ["gemini-4-hydrogen", "gemini-3.1-flash-lite"];
+    const candidateModels = ["gemini-3.1-flash-lite", "gemini-4-hydrogen"];
 
     let lastError: any = null;
     let responseText: string | null = null;
